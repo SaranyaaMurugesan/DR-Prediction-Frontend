@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionCare AI - DR Dashboard</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --bg-page: #FAF8F5; 
+            --bg-card: #FFFFFF;
+            --brown-dark: #5C4033;
+            --brown-main: #7A5230;
+            --brown-medium: #A67B5B;
+            --brown-light: #E6D3B3;
+            --brown-faded: #F5EFEB; 
+            --text-dark: #332219;
+            --text-muted: #857164;
+            --border: #EAE3DE;
+            --shadow-soft: 0 8px 30px rgba(92, 64, 51, 0.06);
+            --shadow-hover: 0 12px 40px rgba(92, 64, 51, 0.1);
+        }
+
+        body { font-family: 'Poppins', sans-serif; background-color: var(--bg-page); margin: 0; padding: 30px 40px; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: var(--text-dark); box-sizing: border-box; }
+        * { box-sizing: border-box; } h1, h2, h3, h4, p { margin: 0; }
+
+        .dashboard { width: 100%; max-width: 1400px; display: grid; grid-template-columns: 65fr 35fr; gap: 30px; height: 90vh; }
+        .premium-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: var(--shadow-soft); transition: box-shadow 0.3s ease; }
+        .premium-card:hover { box-shadow: var(--shadow-hover); }
+
+        /* LEFT SIDE */
+        .chat-section { display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--bg-card); }
+        .top-controls { padding: 24px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
+        .patient-form { display: flex; gap: 12px; }
+        .patient-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: 'Poppins', sans-serif; font-size: 0.9rem; outline: none; color: var(--text-dark); background: #FAFAFA; transition: border-color 0.2s; }
+        .patient-input:focus { border-color: var(--brown-medium); }
+        
+        .upload-wrapper { display: flex; gap: 20px; align-items: center; }
+        .drop-zone { flex-grow: 1; border: 2px dashed var(--brown-light); border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s ease; position: relative; background: #FAFAFA; }
+        .drop-zone:hover { border-color: var(--brown-medium); background: var(--brown-faded); }
+        .drop-zone input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .upload-text { color: var(--brown-main); font-weight: 500; font-size: 0.95rem; }
+        .image-preview-container { width: 80px; height: 80px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); display: none; flex-shrink: 0; box-shadow: var(--shadow-soft); }
+        .image-preview-container img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Chat */
+        .messages { flex-grow: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; scroll-behavior: smooth; }
+        .message { max-width: 75%; padding: 16px 20px; border-radius: 20px; line-height: 1.6; font-size: 1rem; animation: fadeIn 0.4s ease forwards; position: relative; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { background: var(--brown-main); color: #FFFFFF; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 15px rgba(122, 82, 48, 0.15); }
+        .message.bot { background: var(--bg-card); color: var(--text-dark); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--brown-light); box-shadow: 0 2px 10px rgba(92, 64, 51, 0.03); }
+        .message .timestamp { font-size: 0.7rem; opacity: 0.7; margin-top: 8px; display: block; text-align: right; }
+        .message.bot ul { margin: 0 0 10px 0; padding-left: 20px; }
+
+        .voice-btn {
+            background: none; border: none; cursor: pointer; color: var(--brown-medium);
+            display: flex; align-items: center; justify-content: center;
+            transition: color 0.2s, transform 0.2s; padding: 4px; border-radius: 50%;
+        }
+        .voice-btn:hover { color: var(--brown-dark); transform: scale(1.1); background-color: var(--brown-faded); }
+
+        .typing-indicator { display: flex; gap: 4px; padding: 8px 4px; }
+        .dot { width: 6px; height: 6px; background: var(--brown-medium); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+        .dot:nth-child(1) { animation-delay: -0.32s; } .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .input-area { padding: 24px 30px; background: var(--bg-card); border-top: 1px solid var(--border); display: flex; align-items: center; }
+        .input-wrapper { display: flex; flex-grow: 1; background: #FFFFFF; border-radius: 30px; padding: 6px 6px 6px 20px; border: 1px solid var(--brown-light); box-shadow: 0 4px 20px rgba(92, 64, 51, 0.04); transition: all 0.3s ease; }
+        .input-wrapper:focus-within { border-color: var(--brown-medium); box-shadow: 0 6px 25px rgba(92, 64, 51, 0.08); }
+        .chat-input { flex-grow: 1; border: none; outline: none; background: transparent; font-size: 1rem; color: var(--text-dark); font-family: 'Poppins', sans-serif; }
+        .chat-input::placeholder { color: var(--text-muted); opacity: 0.6; }
+        .send-btn { background: linear-gradient(135deg, var(--brown-main), var(--brown-dark)); color: white; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.2s, box-shadow 0.2s; }
+        .send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(92, 64, 51, 0.3); }
+        .send-btn svg { width: 18px; height: 18px; fill: white; margin-left: 2px; }
+
+        /* RIGHT SIDE */
+        .insights-section { display: flex; flex-direction: column; gap: 24px; overflow-y: auto; padding-right: 4px; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: var(--brown-light); }
+        .panel-header { font-size: 1.4rem; font-weight: 600; color: var(--brown-dark); margin-bottom: 4px; }
+
+        .graph-card { padding: 24px; } .graph-container { position: relative; height: 220px; width: 100%; margin-top: 16px; }
+        .summary-card { padding: 24px; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+        .summary-card::before { content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 5px; background: var(--brown-main); }
+        .summary-title { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .stage-value { font-size: 1.8rem; font-weight: 700; color: var(--brown-dark); margin: 8px 0; display: flex; align-items: center; gap: 12px; }
+        .confidence-pill { font-size: 0.8rem; background: var(--brown-faded); color: var(--brown-main); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--brown-light); font-weight: 600; }
+
+        .pdf-action-container { margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px; }
+        .btn-download { background: #FFFFFF; color: var(--brown-main); border: 1px solid var(--brown-main); border-radius: 8px; padding: 8px 16px; font-family: 'Poppins', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: center; }
+        .btn-download:hover { background: var(--brown-faded); }
+        .pdf-msg { font-size: 0.85rem; color: var(--text-muted); font-style: italic; background: #FAFAFA; padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
+        .pdf-success { color: #10b981; font-size: 0.85rem; font-weight: 500; text-align: center; margin-top: 8px; display: none; }
+
+        .rec-card { padding: 24px; flex-grow: 1; }
+        .rec-list { list-style: none; padding: 0; margin: 16px 0 0 0; display: flex; flex-direction: column; gap: 12px; }
+        .rec-item { display: flex; align-items: flex-start; gap: 12px; font-size: 0.95rem; color: var(--text-dark); background: #FAFAFA; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); transition: border-color 0.2s; }
+        .rec-item:hover { border-color: var(--brown-light); }
+        .rec-icon { color: var(--brown-main); flex-shrink: 0; margin-top: 2px; }
+
+        .spinner { border: 3px solid rgba(230, 211, 179, 0.3); border-top: 3px solid var(--brown-main); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: none; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Hidden PDF Template Styling */
+        #pdf-template-wrapper { display: none; }
+        .pdf-document { width: 800px; padding: 50px; background: #FFFFFF; color: #332219; font-family: 'Arial', sans-serif; box-sizing: border-box; }
+        .pdf-header { text-align: center; border-bottom: 2px solid #5C4033; padding-bottom: 20px; margin-bottom: 30px; }
+        .pdf-logo-text { font-size: 28px; font-weight: bold; color: #5C4033; letter-spacing: 1px; }
+        .pdf-title { font-size: 18px; color: #7A5230; margin-top: 5px; } .pdf-date { text-align: right; font-size: 12px; color: #857164; margin-top: 10px; }
+        .pdf-section { margin-bottom: 25px; } .pdf-section-title { font-size: 16px; color: #5C4033; border-bottom: 1px solid #EAE3DE; padding-bottom: 5px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .pdf-patient-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; font-size: 14px; } .pdf-patient-box { background: #FAF8F5; padding: 10px 15px; border-radius: 6px; border: 1px solid #EAE3DE; }
+        .pdf-label { font-size: 11px; color: #857164; text-transform: uppercase; margin-bottom: 3px; } .pdf-value { font-weight: bold; color: #332219; }
+        .pdf-result-box { background: #FFFFFF; border: 2px solid #7A5230; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+        .pdf-stage { font-size: 24px; font-weight: bold; color: #5C4033; } .pdf-conf { font-size: 14px; color: #7A5230; margin-top: 5px; }
+        .pdf-risk { display: inline-block; padding: 6px 15px; color: white; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        .pdf-desc { line-height: 1.6; font-size: 14px; color: #332219; background: #FAF8F5; padding: 15px; border-radius: 8px; border-left: 4px solid #A67B5B; }
+        .pdf-list { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; }
+        .pdf-footer { margin-top: 50px; text-align: center; font-size: 11px; color: #857164; border-top: 1px solid #EAE3DE; padding-top: 20px; }
+        @media (max-width: 1024px) { .dashboard { grid-template-columns: 1fr; height: auto; } .chat-section { height: 600px; } }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <!-- LEFT: CHATBOT (65%) -->
+        <div class="premium-card chat-section">
+            <div class="top-controls">
+                <!-- Header & Language Toggle -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h2 style="color: var(--brown-dark); font-size: 1.15rem; font-weight: 600;" data-i18n="chatHeader">VisionCare Chat</h2>
+                    <button id="langToggle" onclick="toggleLanguage()" style="background: var(--brown-faded); color: var(--brown-dark); border: 1px solid var(--brown-light); padding: 4px 14px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 0.85rem; font-family: 'Poppins', sans-serif; transition: background 0.2s;">
+                        🌐 தமிழ்
+                    </button>
+                </div>
+                <!-- Patient Details Form -->
+                <div class="patient-form">
+                    <input type="text" id="patName" class="patient-input" placeholder="Patient Name (Optional)" data-i18n-ph="patNamePh">
+                    <input type="number" id="patAge" class="patient-input" placeholder="Age" min="1" max="120" style="max-width: 100px;" data-i18n-ph="patAgePh">
+                    <select id="patGender" class="patient-input" style="max-width: 150px;">
+                        <option value="" data-i18n="genderOpt">Gender</option>
+                        <option value="Male" data-i18n="genderMale">Male</option>
+                        <option value="Female" data-i18n="genderFemale">Female</option>
+                    </select>
+                </div>
+
+                <!-- Upload Area -->
+                <div class="upload-wrapper">
+                    <div class="drop-zone" id="uploadZone">
+                        <input type="file" id="imageInput" accept="image/jpeg, image/png">
+                        <div class="spinner" id="uploadLoader"></div>
+                        <div id="uploadText" class="upload-text">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                            <span data-i18n="uploadText">Drag & drop retinal image here or click to browse</span>
+                        </div>
+                    </div>
+                    <div class="image-preview-container" id="previewContainer">
+                        <img id="heatmapImage" src="" alt="Scan Preview">
+                    </div>
+                </div>
+            </div>
+
+            <div class="messages" id="messages">
+                <!-- Messages will be appended here dynamically -->
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input type="text" id="userInput" class="chat-input" placeholder="Ask anything about your eye health..." data-i18n-ph="chatInputPh" onkeypress="handleKeyPress(event)" />
+                    <button class="send-btn" onclick="sendMessage()">
+                        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: INSIGHTS PANEL (35%) -->
+        <div class="insights-section">
+            <h2 class="panel-header" data-i18n="overviewTitle">Overview</h2>
+            
+            <div class="premium-card summary-card">
+                <div class="summary-title" data-i18n="diagnosisTitle">Diagnosis Result</div>
+                <div class="stage-value">
+                    <span id="stageName" data-i18n="awaitingScan">Awaiting Scan...</span>
+                    <span class="confidence-pill" id="confidencePill" style="display: none;">0%</span>
+                </div>
+                <p id="recommendationText" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 8px;" data-i18n="uploadToView">Upload a scan to view insights.</p>
+                
+                <div class="pdf-action-container" id="pdfActionContainer" style="display: none;">
+                    <div class="pdf-msg" id="pdfMsgNone" style="display: none;" data-i18n="reportNotReq">
+                        No Diabetic Retinopathy detected. Report download is not required.
+                    </div>
+                    <button class="btn-download" id="btnDownloadPdf" style="display: none;" onclick="generatePDF()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        <span id="btnPdfText" data-i18n="downloadBtn">Download PDF Report</span>
+                    </button>
+                    <div class="pdf-success" id="pdfSuccess" data-i18n="reportSuccess">Report downloaded successfully!</div>
+                </div>
+            </div>
+
+            <div class="premium-card graph-card">
+                <div class="summary-title" style="margin-bottom: 8px;" data-i18n="weeklyGraphTitle">Weekly Eye Health Insights</div>
+                <div class="graph-container">
+                    <canvas id="progressionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="premium-card rec-card">
+                <div class="summary-title" data-i18n="actionPlanTitle">Action Plan</div>
+                <ul class="rec-list">
+                    <li class="rec-item">
+                        <svg class="rec-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        <span data-i18n="rec1">Maintain steady blood sugar levels to prevent progression.</span>
+                    </li>
+                    <li class="rec-item">
+                        <svg class="rec-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span data-i18n="rec2">Schedule a comprehensive eye exam with an ophthalmologist.</span>
+                    </li>
+                    <li class="rec-item">
+                        <svg class="rec-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
+                        <span data-i18n="rec3">Monitor your vision changes consistently.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden PDF Template -->
+    <div id="pdf-template-wrapper"><div id="pdf-document" class="pdf-document"><div class="pdf-header"><div class="pdf-logo-text">VisionCare AI</div><div class="pdf-title">Diabetic Retinopathy Screening Report</div><div class="pdf-date" id="docDate">Date: N/A</div></div><div class="pdf-section"><div class="pdf-section-title">Patient Details</div><div class="pdf-patient-grid"><div class="pdf-patient-box"><div class="pdf-label">Patient Name</div><div class="pdf-value" id="docName">Not Provided</div></div><div class="pdf-patient-box"><div class="pdf-label">Age</div><div class="pdf-value" id="docAge">Not Provided</div></div><div class="pdf-patient-box"><div class="pdf-label">Gender</div><div class="pdf-value" id="docGender">Not Provided</div></div></div></div><div class="pdf-section"><div class="pdf-section-title">Analysis Result</div><div class="pdf-result-box"><div class="pdf-stage" id="docStage">Moderate DR</div><div class="pdf-conf" id="docConf">Confidence: 95.2%</div></div></div><div class="pdf-section"><div class="pdf-section-title">Risk Level</div><div class="pdf-risk" id="docRiskBg" style="background: #A67B5B;"><span id="docRiskText">Medium Risk</span></div></div><div class="pdf-section"><div class="pdf-section-title">Condition Explanation</div><div class="pdf-desc" id="docExplanation">Blood vessels in the retina are becoming damaged and may leak. Vision problems can develop if left untreated.</div></div><div class="pdf-section"><div class="pdf-section-title">Recommendations</div><ul class="pdf-list"><li>Immediately schedule a visit to a qualified ophthalmologist.</li><li>Strictly maintain healthy blood sugar levels.</li><li>Ensure regular monitoring of your vision.</li><li>Adopt a healthy lifestyle and diet appropriate for diabetic care.</li></ul></div><div class="pdf-footer"><strong>DISCLAIMER:</strong> This report was generated by an Artificial Intelligence system and is NOT a definitive medical diagnosis. Please consult a qualified eye specialist or doctor for confirmation and appropriate treatment.</div></div></div>
+
+    <script>
+        // --- MULTILINGUAL TRANSLATION DICTIONARY ---
+        const translations = {
+            en: {
+                chatHeader: "VisionCare Chat",
+                patNamePh: "Patient Name (Optional)", patAgePh: "Age", genderOpt: "Gender", genderMale: "Male", genderFemale: "Female",
+                uploadText: "Drag & drop retinal image here or click to browse",
+                welcome1: "Welcome to <strong>VisionCare AI</strong>. I am your specialized Diabetic Retinopathy assistant.",
+                welcome2: "Enter patient details above (optional) and upload a retinal scan to receive an instant analysis. If DR is detected, you will be able to download a medical report.",
+                chatInputPh: "Ask anything about your eye health...",
+                overviewTitle: "Overview", diagnosisTitle: "Diagnosis Result", awaitingScan: "Awaiting Scan...", uploadToView: "Upload a scan to view insights.",
+                reportNotReq: "No Diabetic Retinopathy detected. Report download is not required.", downloadBtn: "Download PDF Report", reportSuccess: "Report downloaded successfully!",
+                weeklyGraphTitle: "Weekly Eye Health Insights", actionPlanTitle: "Action Plan",
+                rec1: "Maintain steady blood sugar levels to prevent progression.", rec2: "Schedule a comprehensive eye exam with an ophthalmologist.", rec3: "Monitor your vision changes consistently.",
+                toggleBtn: "🌐 தமிழ்"
+            },
+            ta: {
+                chatHeader: "VisionCare சாட்",
+                patNamePh: "நோயாளியின் பெயர் (விருப்பம்)", patAgePh: "வயது", genderOpt: "பாலினம்", genderMale: "ஆண்", genderFemale: "பெண்",
+                uploadText: "விழித்திரை படத்தை இங்கே இழுத்து விடவும் அல்லது உலாவுவதற்கு கிளிக் செய்யவும்",
+                welcome1: "<strong>VisionCare AI</strong> க்கு வரவேற்கிறோம். நான் உங்கள் நீரிழிவு ரெட்டினோபதி மருத்துவ உதவியாளர்.",
+                welcome2: "பகுப்பாய்வைப் பெற விழித்திரை ஸ்கேனை பதிவேற்றவும். DR இருந்தால் மருத்துவ அறிக்கையை பதிவிறக்கலாம்.",
+                chatInputPh: "கண் ஆரோக்கியம் பற்றி எதையும் கேளுங்கள்...",
+                overviewTitle: "கண்ணோட்டம்", diagnosisTitle: "நோயறிதல் முடிவு", awaitingScan: "காத்திருக்கிறது...", uploadToView: "விவரங்களை காண ஸ்கேனை பதிவேற்றவும்.",
+                reportNotReq: "நீரிழிவு ரெட்டினோபதி கண்டறியப்படவில்லை. அறிக்கை தேவையில்லை.", downloadBtn: "PDF அறிக்கையை பதிவிறக்குக", reportSuccess: "அறிக்கை வெற்றிகரமாக பதிவிறக்கப்பட்டது!",
+                weeklyGraphTitle: "வாராந்திர கண் ஆரோக்கிய விவரங்கள்", actionPlanTitle: "செயல் திட்டம்",
+                rec1: "முன்னேற்றத்தைத் தடுக்க நிலையான இரத்த சர்க்கரை அளவை பராமரிக்கவும்.", rec2: "கண் மருத்துவரிடம் விரிவான கண் பரிசோதனைக்கு திட்டமிடுங்கள்.", rec3: "உங்கள் பார்வை மாற்றங்களை தொடர்ந்து கண்காணிக்கவும்.",
+                toggleBtn: "🌐 English"
+            }
+        };
+
+        let currentLang = 'en';
+
+        function updateUI() {
+            const tr = translations[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = tr[el.getAttribute('data-i18n')]; });
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = tr[el.getAttribute('data-i18n-ph')]; });
+            document.getElementById('langToggle').textContent = tr.toggleBtn;
+
+            // Re-render Graph text
+            if (chartInstance) {
+                chartInstance.data.labels = currentLang === 'en' ? ['Past Week', 'Currently', 'Projected'] : ['கடந்த வாரம்', 'தற்போது', 'எதிர்பார்க்கப்படுவது'];
+                chartInstance.update();
+            }
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ta' : 'en';
+            updateUI();
+            appendMessage(currentLang === 'en' ? "Language switched to English. How can I help you?" : "மொழி தமிழுக்கு மாற்றப்பட்டுள்ளது. உங்கள் கேள்விகளை கேட்கலாம்!", "bot");
+        }
+
+        // --- GRAPH & LOGIC ---
+        let chartInstance = null;
+        function initChart(past, present, future) {
+            const ctx = document.getElementById('progressionChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            let gradient = ctx.createLinearGradient(0, 0, 0, 220);
+            gradient.addColorStop(0, 'rgba(122, 82, 48, 0.4)'); gradient.addColorStop(1, 'rgba(230, 211, 179, 0.05)');
+            chartInstance = new Chart(ctx, {
+                type: 'line', data: { labels: currentLang === 'en' ? ['Past Week', 'Currently', 'Projected'] : ['கடந்த வாரம்', 'தற்போது', 'எதிர்பார்க்கப்படுவது'], datasets: [{ label: 'DR', data: [past, present, future], borderColor: '#7A5230', backgroundColor: gradient, borderWidth: 3, pointBackgroundColor: '#FFFFFF', pointBorderColor: '#7A5230', pointBorderWidth: 2, pointRadius: 5, tension: 0.4, fill: true }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 4, grid: { color: '#EAE3DE' }, ticks: { stepSize: 1, callback: v => ['No DR', 'Mild', 'Moderate', 'Severe', 'Proliferative'][v]||v } }, x: { grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#5C4033' } }  }
+            });
+        }
+        initChart(0, 0, 0);
+
+        let currentStageObj = null; let currentData = null;
+
+        document.getElementById('imageInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0]; if (!file) return;
+            document.getElementById('uploadText').style.display = 'none'; document.getElementById('uploadLoader').style.display = 'block'; document.getElementById('pdfSuccess').style.display = 'none';
+            const formData = new FormData(); formData.append('file', file);
+            try {
+                const response = await fetch('/api/v1/analyze', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error('Analysis failed');
+                const data = await response.json(); currentData = data;
+                
+                document.getElementById('previewContainer').style.display = 'block'; document.getElementById('heatmapImage').src = data.heatmap_base64;
+                document.getElementById('stageName').textContent = data.dr_stage;
+                document.getElementById('recommendationText').textContent = currentLang === 'ta' ? data.local_suggestion_native : data.local_suggestion_en;
+                document.getElementById('confidencePill').style.display = 'inline-block'; document.getElementById('confidencePill').textContent = `${data.confidence}%`;
+
+                const stageMap = { 'No DR': 0, 'Mild': 1, 'Moderate': 2, 'Severe': 3, 'Proliferative DR': 4 };
+                let presentVal = stageMap[data.dr_stage] || 0; let pastVal = presentVal < 4 ? presentVal + 1 : 4; let futureVal = presentVal > 0 ? presentVal - 1 : 0;
+                
+                document.getElementById('pdfActionContainer').style.display = 'block';
+                if (presentVal === 0) {
+                    pastVal = 0; futureVal = 0; document.getElementById('pdfMsgNone').style.display = 'block'; document.getElementById('btnDownloadPdf').style.display = 'none';
+                } else {
+                    document.getElementById('pdfMsgNone').style.display = 'none'; document.getElementById('btnDownloadPdf').style.display = 'inline-flex';
+                }
+
+                currentStageObj = { val: presentVal, str: data.dr_stage }; initChart(pastVal, presentVal, futureVal);
+
+                const initialMsg = `[System] User uploaded scan. Result: ${data.dr_stage}. Expalin.`;
+                document.getElementById('userInput').value = initialMsg; sendMessage(true);
+
+            } catch (err) { console.error(err); appendMessage("Failed", "bot"); } finally { document.getElementById('uploadLoader').style.display = 'none'; document.getElementById('uploadText').style.display = 'block'; }
+        });
+
+        async function generatePDF() {
+            if (!currentData) return;
+            const btn = document.getElementById('btnDownloadPdf'); const originalHtml = btn.innerHTML;
+            btn.innerHTML = 'Generating...'; btn.style.opacity = '0.7';
+
+            document.getElementById('docName').textContent = document.getElementById('patName').value || 'Not Provided';
+            document.getElementById('docAge').textContent = document.getElementById('patAge').value || 'Not Provided';
+            document.getElementById('docGender').textContent = document.getElementById('patGender').value || 'Not Provided';
+            document.getElementById('docDate').textContent = `Date: ${new Date().toLocaleString()}`;
+            document.getElementById('docStage').textContent = currentData.dr_stage; document.getElementById('docConf').textContent = `Confidence: ${currentData.confidence}%`;
+
+            let v = currentStageObj ? currentStageObj.val : 1; const riskBg = document.getElementById('docRiskBg'); const riskText = document.getElementById('docRiskText'); const exp = document.getElementById('docExplanation');
+            if (v === 1) { riskBg.style.background = '#A67B5B'; riskText.textContent = 'Low/Medium Risk'; exp.textContent = 'Mild swelling in blood vessels.'; } else if (v === 2) { riskBg.style.background = '#7A5230'; riskText.textContent = 'Medium Risk'; exp.textContent = 'Blood vessels in the retina are becoming damaged.'; } else if (v === 3) { riskBg.style.background = '#5C4033'; riskText.textContent = 'High Risk'; exp.textContent = 'Significant blockage of blood vessels.'; } else if (v === 4) { riskBg.style.background = '#332219'; riskText.textContent = 'Severe Risk'; exp.textContent = 'Advanced stage. High risk of bleeding.'; }
+
+            const element = document.getElementById('pdf-document');
+            const safeName = (document.getElementById('patName').value || 'Patient').replace(/[^a-z0-9]/gi, '_');
+            const filename = `DR_Report_${safeName}_${new Date().toISOString().slice(0,10)}.pdf`;
+            const opt = { margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
+
+            element.style.display = 'block'; await html2pdf().set(opt).from(element).save(); element.style.display = '';
+            btn.innerHTML = originalHtml; btn.style.opacity = '1'; document.getElementById('pdfSuccess').style.display = 'block'; setTimeout(() => { document.getElementById('pdfSuccess').style.display = 'none'; }, 4000);
+        }
+
+        let chatHistory = []; function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+
+        async function sendMessage(isSystemMessage = false) {
+            const input = document.getElementById('userInput'); const rawText = input.value.trim(); if (!rawText) return;
+            const displayMsg = isSystemMessage ? (currentLang === 'ta' ? "(பயனர் ஸ்கேன் பதிவேற்றினார்)" : "(User uploaded a scan and expects analysis)") : rawText;
+            appendMessage(displayMsg, 'user'); input.value = '';
+
+            const messagesDiv = document.getElementById('messages'); const typingDiv = document.createElement('div'); typingDiv.className = 'message bot typing-message';
+            typingDiv.innerHTML = `<div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`; messagesDiv.appendChild(typingDiv); scrollToBottom();
+
+            try {
+                const response = await fetch('/api/v1/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: rawText, history: chatHistory, language: currentLang }) });
+                const data = await response.json(); messagesDiv.removeChild(typingDiv);
+                if (data.status === 'success') { appendMessage(data.response, 'bot', true); chatHistory.push({ role: 'user', content: rawText }); chatHistory.push({ role: 'bot', content: data.response }); }
+            } catch (error) { messagesDiv.removeChild(typingDiv); appendMessage("Network connection lost. Please verify server.", 'bot'); }
+        }
+
+        function readTextOutLoud(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                let cleanText = text.replace(/[*_#`]/g, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                
+                // Active Voice Searching
+                const voices = window.speechSynthesis.getVoices();
+                if (currentLang === 'ta') {
+                    // Look for any voice with 'ta' (Tamil)
+                    const tamilVoice = voices.find(v => v.lang.startsWith('ta'));
+                    if (tamilVoice) {
+                        utterance.voice = tamilVoice;
+                        utterance.lang = tamilVoice.lang;
+                    } else {
+                        utterance.lang = 'ta-IN'; // Fallback
+                    }
+                } else {
+                    utterance.lang = 'en-US';
+                }
+                
+                utterance.rate = currentLang === 'ta' ? 0.9 : 1.0;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Text-to-Speech is not supported in this browser.");
+            }
+        }
+
+        function appendMessage(text, sender, isMarkdown=false) {
+            const messagesDiv = document.getElementById('messages'); const msgDiv = document.createElement('div'); msgDiv.className = `message ${sender}`;
+            if (isMarkdown && sender === 'bot') { msgDiv.innerHTML = marked.parse(text); } else { msgDiv.textContent = text; }
+            
+            // Meta container for speaker button and timestamp
+            const metaDiv = document.createElement('div');
+            metaDiv.style.display = 'flex'; metaDiv.style.justifyContent = sender === 'bot' ? 'space-between' : 'flex-end';
+            metaDiv.style.alignItems = 'center'; metaDiv.style.marginTop = '12px'; metaDiv.style.opacity = '0.6';
+
+            if (sender === 'bot') {
+                const playBtn = document.createElement('button');
+                playBtn.className = 'voice-btn';
+                playBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+                playBtn.title = currentLang === 'ta' ? "படிக்க" : "Read Aloud";
+                playBtn.onclick = () => readTextOutLoud(text);
+                metaDiv.appendChild(playBtn);
+            }
+
+            const timeSpan = document.createElement('span'); timeSpan.className = 'timestamp'; timeSpan.style.margin = '0';
+            timeSpan.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            metaDiv.appendChild(timeSpan);
+            
+            msgDiv.appendChild(metaDiv);
+            messagesDiv.appendChild(msgDiv); scrollToBottom();
+        }
+        function scrollToBottom() { const md = document.getElementById('messages'); md.scrollTo({ top: md.scrollHeight, behavior: 'smooth' }); }
+        
+        function showWelcome() {
+            const tr = translations[currentLang];
+            const welcomeHtml = `<p>${tr.welcome1}</p><p>${tr.welcome2}</p>`;
+            appendMessage(welcomeHtml, 'bot', true);
+        }
+
+        // Pre-load voices for better reliability (especially for Chrome/Windows)
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
+        }
+
+        // Initial setup
+        updateUI();
+        showWelcome();
+    </script>
+</body>
+</html>
